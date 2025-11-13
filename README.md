@@ -1,4 +1,4 @@
-````markdown
+
 # Proyek Absensi Wajah (FaceAttend)
 
 Proyek ini adalah aplikasi *full-stack* untuk sistem absensi (check-in/check-out) menggunakan verifikasi lokasi dan pengenalan wajah (*face recognition*).
