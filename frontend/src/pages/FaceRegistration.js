@@ -20,9 +20,25 @@ export default function FaceRegistration({ user, onLogout }) {
   const [stream, setStream] = useState(null);
 
   // --- LOAD MODEL ---
-  useEffect(() => {
-    loadModels();
-  }, []);
+ useEffect(() => {
+    // 1. Memuat model saat komponen pertama kali dimuat
+    loadModels();
+  }, []); // <-- Array kosong berarti hanya berjalan satu kali
+
+  useEffect(() => {
+    // 2. Efek ini akan berjalan SETELAH state 'isCapturing' true
+    //    dan elemen <video> sudah ada di layar
+    if (isCapturing && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+
+    // 3. Fungsi cleanup untuk mematikan kamera saat halaman ditutup
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isCapturing, stream]); // <-- Dijalankan saat nilai ini berubah
 
   // --- HANDLE CAMERA STREAM ---
   useEffect(() => {
@@ -56,23 +72,27 @@ export default function FaceRegistration({ user, onLogout }) {
 
   // --- START CAMERA ---
   const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-      });
-
-      setStream(mediaStream);
-      setIsCapturing(true);
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      if (error.name === 'NotAllowedError') {
-        toast.error('Izin kamera diblokir. Silakan izinkan melalui pengaturan browser.');
-      } else {
-        toast.error('Tidak dapat mengakses kamera. Pastikan kamera terpasang.');
-      }
-    }
-  };
-
+    try {
+      // 1. Minta izin dan dapatkan stream
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
+      });
+        
+      // 2. Simpan stream di state
+      setStream(mediaStream);
+        
+      // 3. Atur state capturing (ini akan memicu useEffect di atas)
+      setIsCapturing(true);
+      
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      if (error.name === "NotAllowedError") {
+        toast.error('Anda memblokir izin kamera. Izinkan di pengaturan browser.');
+      } else {
+        toast.error('Tidak dapat mengakses kamera. Pastikan kamera terpasang.');
+      }
+    }
+  };
   // --- CAPTURE FACE IMAGE ---
   const captureImage = async () => {
     if (!modelsLoaded) {

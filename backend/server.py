@@ -235,6 +235,19 @@ async def create_office_location(location_data: OfficeLocationCreate, current_us
     await db.offices.insert_one(doc)
     return location
 
+# ============ HELPER FUNCTIONS ============
+
+# ... (setelah fungsi get_current_user di baris 137) ...
+
+async def get_admin_user(current_user: User = Depends(get_current_user)):
+    """Helper dependency untuk memastikan pengguna adalah admin"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Operasi ini memerlukan hak akses admin"
+        )
+    return current_user
+
 @api_router.get("/office/location", response_model=OfficeLocation)
 async def get_office_location():
     office_doc = await db.offices.find_one({}, {"_id": 0})
@@ -357,13 +370,51 @@ async def get_my_history(current_user: User = Depends(get_current_user)):
     
     return [Attendance(**att) for att in attendance_list]
 
+from typing import Optional # <--- TAMBAHKAN DI BAGIAN ATAS FILE (baris 13)
+
+# ... (setelah route /attendance/my-history) ...
+
+@api_router.get("/users/all", response_model=List[User])
+async def get_all_users(admin_user: User = Depends(get_admin_user)):
+    """
+    (Admin Only) Mengambil semua data pengguna.
+    Password sengaja tidak diikutsertakan.
+    """
+    # Menemukan semua pengguna, tapi tidak mengikutsertakan field 'password'
+    user_list = await db.users.find(
+        {}, 
+        {"_id": 0, "password": 0} 
+    ).to_list(1000)
+    
+    # Konversi datetime string ke object
+    for user in user_list:
+        if isinstance(user.get('created_at'), str):
+            user['created_at'] = datetime.fromisoformat(user['created_at'])
+    
+    return [User(**user) for user in user_list]
+
+
+
+# ... kode Anda yang lain ...
+
 @api_router.get("/attendance/all", response_model=List[Attendance])
-async def get_all_attendance(current_user: User = Depends(get_current_user)):
+async def get_all_attendance(
+    current_user: User = Depends(get_current_user),
+    date: Optional[str] = None,  # Parameter baru: ?date=YYYY-MM-DD
+    user_name: Optional[str] = None # Parameter baru: ?user_name=...
+):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admin can view all attendance")
     
+    query = {}
+    if date:
+        query["date"] = date
+    if user_name:
+        # Mencari nama yang mengandung string (case-insensitive)
+        query["user_name"] = {"$regex": user_name, "$options": "i"} 
+        
     attendance_list = await db.attendance.find(
-        {},
+        query, # <-- Gunakan query filter
         {"_id": 0}
     ).sort("date", -1).to_list(1000)
     
